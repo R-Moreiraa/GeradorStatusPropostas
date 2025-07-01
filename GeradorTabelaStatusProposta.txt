@@ -1,0 +1,267 @@
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" /> <!-- Define a codificação de caracteres para UTF-8 -->
+  
+  <title>Status de Propostas - Atualizar e Exportar</title> <!-- Título da página -->
+  
+  <!-- Estilos CSS para a página -->
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      padding: 20px; 
+      background: #f9f9f9; 
+    }
+    /* Estilização de formulário */
+    label, select, input { 
+      display: block; 
+      margin-bottom: 10px; 
+      width: 100%; 
+      max-width: 500px; 
+    }
+    button { 
+      padding: 8px 15px; 
+      margin-top: 10px; 
+    }
+    /* Estilização da tabela */
+    table { 
+      border-collapse: collapse; 
+      margin-top: 20px; 
+      max-width: 700px; 
+      width: 100%; 
+    }
+    table, th, td { 
+      border: 1px solid #ccc; 
+    }
+    th, td { 
+      padding: 8px; 
+      text-align: left; 
+    }
+    /* Estilos para botões de ação */
+    .btn-edit, .btn-delete {
+      cursor: pointer; 
+      color: white; 
+      padding: 4px 8px; 
+      border: none; 
+      border-radius: 4px;
+      font-size: 0.9em;
+      margin-right: 5px;
+    }
+    .btn-edit { background-color: #4CAF50; } /* Verde para editar */
+    .btn-delete { background-color: #f44336; } /* Vermelho para apagar */
+    /* Área de saída Markdown */
+    #markdownOutput { 
+      width: 100%; 
+      height: 250px; 
+      font-family: monospace; 
+      margin-top: 20px; 
+    }
+  </style>
+</head>
+<body>
+
+<!-- Cabeçalho principal -->
+<h1>Atualizar Status de Propostas</h1>
+
+<!-- Formulário para adicionar/editar propostas -->
+<form id="formProposta">
+  <label>Título da Proposta:</label>
+  <input type="text" id="titulo" required /> <!-- Campo obrigatório -->
+
+  <label>Link da Proposta:</label>
+  <input type="url" id="link" required /> <!-- Campo obrigatório com validação de URL -->
+
+  <label>Status:</label>
+  <select id="status"> <!-- Dropdown de status com emojis -->
+    <option value="🟡 Em Elaboração">🟡 Em Elaboração</option>
+    <option value="🟠 Em Aprovação do Cliente">🟠 Em Aprovação do Cliente</option>
+    <option value="🟢 Aprovado">🟢 Aprovado</option>
+    <option value="🔴 Cancelado">🔴 Cancelado</option>
+  </select>
+
+  <!-- Botões dinâmicos (Salvar/Atualizar) -->
+  <button type="submit" id="btnSalvar">Salvar Proposta</button>
+  <button type="button" id="btnCancelarEdicao" style="display:none; margin-left: 10px;">Cancelar Edição</button>
+</form>
+
+<!-- Seção da lista de propostas -->
+<h2>Lista de Propostas</h2>
+<table id="tabelaPropostas">
+  <thead>
+    <tr>
+      <th>Título</th>
+      <th>Status</th>
+      <th>Ações</th> <!-- Coluna para botões de editar/apagar -->
+    </tr>
+  </thead>
+  <tbody></tbody> <!-- Local dinâmico para os dados -->
+</table>
+
+<!-- Seção de saída Markdown -->
+<h2>Markdown Gerado</h2>
+<textarea id="markdownOutput" readonly></textarea> <!-- Área de texto somente leitura -->
+
+<br />
+<button id="btnSalvarMarkdown">Salvar Markdown no Computador</button> <!-- Botão de exportação -->
+
+<script>
+  // Referências aos elementos DOM
+  const form = document.getElementById('formProposta');
+  const tituloInput = document.getElementById('titulo');
+  const linkInput = document.getElementById('link');
+  const statusSelect = document.getElementById('status');
+  const markdownOutput = document.getElementById('markdownOutput');
+  const tabelaBody = document.querySelector('#tabelaPropostas tbody');
+  const btnCancelarEdicao = document.getElementById('btnCancelarEdicao');
+  const btnSalvarMarkdown = document.getElementById('btnSalvarMarkdown');
+
+  // Carrega propostas do localStorage ou inicia array vazio
+  let propostas = JSON.parse(localStorage.getItem('propostas') || '[]');
+  let indiceEdicao = null; // Controla edição
+
+  // Atualiza a tabela com dados das propostas
+  function atualizarTabela() {
+    tabelaBody.innerHTML = '';
+    propostas.forEach((p, index) => {
+      const tr = document.createElement('tr');
+
+      // Célula do título com link clicável
+      const tdTitulo = document.createElement('td');
+      tdTitulo.innerHTML = `<a href="${p.link}" target="_blank" rel="noopener noreferrer">${p.titulo}</a>`;
+      tr.appendChild(tdTitulo);
+
+      // Célula de status
+      const tdStatus = document.createElement('td');
+      tdStatus.textContent = p.status;
+      tr.appendChild(tdStatus);
+
+      // Célula de ações (editar/apagar)
+      const tdAcoes = document.createElement('td');
+
+      const btnEdit = document.createElement('button');
+      btnEdit.textContent = 'Editar';
+      btnEdit.className = 'btn-edit';
+      btnEdit.onclick = () => editarProposta(index); // Passa índice para edição
+
+      const btnDelete = document.createElement('button');
+      btnDelete.textContent = 'Apagar';
+      btnDelete.className = 'btn-delete';
+      btnDelete.onclick = () => apagarProposta(index); // Passa índice para exclusão
+
+      tdAcoes.appendChild(btnEdit);
+      tdAcoes.appendChild(btnDelete);
+      tr.appendChild(tdAcoes);
+
+      tabelaBody.appendChild(tr);
+    });
+  }
+
+  // Gera conteúdo Markdown a partir das propostas
+  function atualizarMarkdown() {
+    let markdown = '| Título | Status |\n|--------|--------|\n';
+    propostas.forEach(p => {
+      markdown += `| [${p.titulo}](${p.link}) | ${p.status} |\n`; // Formato Markdown
+    });
+    markdownOutput.value = markdown;
+  }
+
+  // Salva propostas no localStorage
+  function salvarLocal() {
+    localStorage.setItem('propostas', JSON.stringify(propostas));
+  }
+
+  // Apaga proposta com confirmação
+  function apagarProposta(index) {
+    if(confirm('Deseja realmente apagar essa proposta?')) {
+      propostas.splice(index, 1); // Remove do array
+      salvarLocal();
+      atualizarTabela();
+      atualizarMarkdown();
+      limparFormulario();
+    }
+  }
+
+  // Preenche formulário para edição
+  function editarProposta(index) {
+    const p = propostas[index];
+    tituloInput.value = p.titulo;
+    linkInput.value = p.link;
+    statusSelect.value = p.status;
+    indiceEdicao = index; // Armazena índice sendo editado
+    form.querySelector('button[type="submit"]').textContent = 'Atualizar Proposta';
+    btnCancelarEdicao.style.display = 'inline-block'; // Mostra botão de cancelamento
+  }
+
+  // Reseta formulário e modo edição
+  function limparFormulario() {
+    form.reset();
+    indiceEdicao = null;
+    form.querySelector('button[type="submit"]').textContent = 'Salvar Proposta';
+    btnCancelarEdicao.style.display = 'none';
+  }
+
+  // Evento de envio do formulário (criação/edição)
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const titulo = tituloInput.value.trim();
+    const link = linkInput.value.trim();
+    const status = statusSelect.value;
+
+    if (indiceEdicao !== null) {
+      // Modo edição: atualiza proposta existente
+      propostas[indiceEdicao] = { titulo, link, status };
+    } else {
+      // Modo criação: verifica duplicatas antes de adicionar
+      const existente = propostas.find(p => p.titulo.toLowerCase() === titulo.toLowerCase());
+      if (existente) {
+        alert('Já existe uma proposta com esse título. Use outro título ou edite a existente.');
+        return;
+      }
+      propostas.push({ titulo, link, status }); // Adiciona nova
+    }
+
+    salvarLocal();
+    atualizarTabela();
+    atualizarMarkdown();
+    limparFormulario();
+  });
+
+  // Evento para cancelar edição
+  btnCancelarEdicao.addEventListener('click', () => {
+    limparFormulario();
+  });
+
+  // Exportação do Markdown para arquivo
+  btnSalvarMarkdown.addEventListener('click', () => {
+    const agora = new Date();
+    
+    // Formata data para nome do arquivo (YYYY-MM-DD_HH-MM-SS)
+    function pad(num) {
+      return num.toString().padStart(2, '0');
+    }
+    const dataHoraStr = `${agora.getFullYear()}-${pad(agora.getMonth()+1)}-${pad(agora.getDate())}_` +
+                        `${pad(agora.getHours())}-${pad(agora.getMinutes())}-${pad(agora.getSeconds())}`;
+
+    const nomeArquivo = `status-propostas_${dataHoraStr}.txt`;
+
+    // Cria e dispara download
+    const blob = new Blob([markdownOutput.value], {type: "text/markdown;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nomeArquivo;
+    document.body.appendChild(a);
+    a.click();
+    // Limpeza após download
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+  });
+
+  // Inicialização da página
+  atualizarTabela();  // Renderiza tabela
+  atualizarMarkdown(); // Gera Markdown inicial
+</script>
+
+</body>
+</html>
